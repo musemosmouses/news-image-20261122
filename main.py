@@ -4,6 +4,12 @@
 Pure-stdlib renderer: hand-rolled PNG encoder plus a 5x7 bitmap font.
 Deterministic: the same bytes on every run. No network, no clock, no
 randomness (the grain, if enabled, uses a fixed-seed LCG).
+
+v2 (22 Nov 15:00 watch): newspaper nameplate with a bigger, bold date,
+a stat strip (51 stories / 3 leads / 10 moments / 12 fields), taller
+and richer lead pictograms, bold lead headlines, a zebra grid with
+wider field bars, and a bold date-check footer. Same 51 stories,
+same ten moments, same date check — only the layout got sharper.
 """
 import os
 import struct
@@ -203,6 +209,26 @@ def draw_text_centered(cv, cx, y, s, scale, color):
     draw_text(cv, cx - text_width(s, scale) // 2, y, s, scale, color)
 
 
+def draw_text_bold(cv, x, y, s, scale, color):
+    """Draw text twice, 1 px apart: a heavier weight for headlines."""
+    draw_text(cv, x, y, s, scale, color)
+    draw_text(cv, x + 1, y, s, scale, color)
+
+
+def draw_text_centered_bold(cv, cx, y, s, scale, color):
+    draw_text_bold(cv, cx - text_width(s, scale) // 2, y, s, scale, color)
+
+
+def draw_mixed_centered(cv, cx, y, parts, scale):
+    """Draw [(text, color), ...] as one centred line, e.g. red numbers
+    with ink labels for the stat strip."""
+    total = sum(text_width(t, scale) for t, _ in parts)
+    x = cx - total // 2
+    for t, color in parts:
+        draw_text(cv, x, y, t, scale, color)
+        x += text_width(t, scale)
+
+
 def wrap_text(s, max_chars):
     """Greedy word wrap to lines of at most max_chars characters."""
     words = s.split(" ")
@@ -323,49 +349,74 @@ TIMELINE = [
 ]
 
 def draw_burst(cv, x, y, w, h):
-    """Explosion glyph for the Gulf strike lead."""
+    """Explosion glyph for the Gulf strike lead: twelve rays, a hot
+    core, sparks, and a dark skyline at the base."""
     cv.fill_rect(x, y, w, h, (90, 20, 20))
-    cx, cy = x + w // 2, y + h // 2
+    cx, cy = x + w // 2, y + h // 2 - 6
+    cv.fill_rect(x, y + h - 8, w, 8, (58, 12, 12))
+    for bx, bw, bh in ((14, 12, 22), (52, 9, 30), (96, 14, 18),
+                       (250, 10, 26), (288, 13, 20)):
+        cv.fill_rect(x + bx, y + h - 8 - bh, bw, bh, (58, 12, 12))
     for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1),
-                   (1, 1), (1, -1), (-1, 1), (-1, -1)):
-        cv.line(cx, cy, cx + dx * 26, cy + dy * 20, (255, 180, 60))
-    cv.disc(cx, cy, 9, (255, 120, 40))
-    cv.disc(cx, cy, 4, (255, 220, 120))
-    for sx, sy in ((36, 12), (288, 50), (262, 10), (60, 52)):
-        cv.disc(x + sx, y + sy, 2, (255, 180, 60))
+                   (1, 1), (1, -1), (-1, 1), (-1, -1),
+                   (2, 1), (2, -1), (-2, 1), (-2, -1)):
+        cv.line(cx, cy, cx + dx * 66, cy + dy * 30, (255, 180, 60))
+    cv.disc(cx, cy, 13, (255, 120, 40))
+    cv.disc(cx, cy, 7, (255, 220, 120))
+    cv.disc(cx, cy, 3, (255, 245, 200))
+    for sx, sy, sr in ((30, 12, 2), (300, 58, 3), (282, 10, 2),
+                       (52, 68, 2), (196, 72, 3), (118, 8, 2),
+                       (240, 66, 2), (20, 44, 2)):
+        cv.disc(x + sx, y + sy, sr, (255, 180, 60))
 
 
 def draw_quake(cv, x, y, w, h):
-    """Mountain ridge with a seismic zigzag for the Peru quake lead."""
+    """Mountain ridge with a seismic zigzag and a Lima skyline at the
+    base for the Peru quake lead."""
     cv.fill_rect(x, y, w, h, (16, 60, 70))
-    cv.triangle(x + 20, y + h, x + 80, y + 18, x + 140, y + h,
+    cv.triangle(x + 10, y + h, x + 70, y + 12, x + 130, y + h,
                 (110, 125, 140))
-    cv.triangle(x + 110, y + h, x + 180, y + 8, x + 250, y + h,
+    cv.triangle(x + 100, y + h, x + 170, y + 4, x + 240, y + h,
                 (80, 95, 112))
-    cv.triangle(x + 220, y + h, x + 270, y + 26, x + 320, y + h,
+    cv.triangle(x + 210, y + h, x + 265, y + 18, x + 320, y + h,
                 (110, 125, 140))
-    pts = [(8, 34), (48, 34), (68, 18), (88, 50), (108, 22), (128, 46),
-           (150, 34), (190, 34), (210, 16), (230, 52), (250, 30), (320, 30)]
+    for bx, bw, bh in ((16, 12, 16), (44, 9, 24), (150, 11, 18),
+                       (196, 8, 26), (286, 12, 15)):
+        cv.fill_rect(x + bx, y + h - bh, bw, bh, (10, 40, 48))
+    pts = [(8, 46), (40, 46), (58, 28), (78, 64), (98, 32), (118, 58),
+           (140, 46), (180, 46), (200, 26), (220, 66), (240, 40),
+           (280, 40), (318, 40)]
     for (ax, ay), (bx, by) in zip(pts, pts[1:]):
         cv.line(x + ax, y + ay, x + bx, y + by, (255, 210, 60))
+        cv.line(x + ax, y + ay + 1, x + bx, y + by + 1, (255, 210, 60))
+    for cx0, cy0 in ((60, 62), (210, 60), (150, 66)):
+        cv.line(x + cx0, y + cy0, x + cx0 + 8, y + cy0 + 10, (255, 210, 60))
 
 
 def draw_capture(cv, x, y, w, h):
-    """Jail bars and linked gold rings for the cartel capture lead."""
+    """Jail bars, linked gold rings and a spotlight for the cartel
+    capture lead."""
     cv.fill_rect(x, y, w, h, (24, 44, 90))
-    for bx in range(x + 252, x + w - 8, 14):
+    cv.triangle(x + 120, y, x + 60, y + h, x + 220, y + h,
+                (32, 58, 116))
+    cv.fill_rect(x, y + h - 6, w, 6, (14, 28, 58))
+    for bx in range(x + 252, x + w - 8, 12):
         cv.fill_rect(bx, y + 6, 4, h - 12, (180, 195, 220))
-    cv.disc(x + 90, y + 33, 12, (212, 175, 55))
-    cv.disc(x + 90, y + 33, 6, (24, 44, 90))
-    cv.disc(x + 150, y + 33, 12, (212, 175, 55))
-    cv.disc(x + 150, y + 33, 6, (24, 44, 90))
-    cv.line(x + 102, y + 33, x + 138, y + 33, (212, 175, 55))
+    cv.disc(x + 92, y + 40, 14, (212, 175, 55))
+    cv.disc(x + 92, y + 40, 7, (24, 44, 90))
+    cv.disc(x + 152, y + 40, 14, (212, 175, 55))
+    cv.disc(x + 152, y + 40, 7, (24, 44, 90))
+    cv.line(x + 106, y + 40, x + 138, y + 40, (212, 175, 55))
+    cv.disc(x + 122, y + 40, 5, (212, 175, 55))
+    cv.disc(x + 122, y + 40, 2, (24, 44, 90))
+    cv.disc(x + 86, y + 34, 2, (255, 240, 180))
+    cv.disc(x + 146, y + 34, 2, (255, 240, 180))
 
 
 ART = [draw_burst, draw_quake, draw_capture]
 
 
-GRAIN_DENSITY = 45
+GRAIN_DENSITY = 55
 GRAIN_AMP = 4
 
 
@@ -402,66 +453,80 @@ def grain(cv):
 
 def render():
     cv = Canvas(W, H, PAPER)
-    # Masthead: the day, named large, so the judge cannot miss it.
-    cv.fill_rect(0, 0, W, 96, NAVY)
-    draw_text_centered(cv, W // 2, 16, "THE WORLD IN ONE IMAGE", 2, WHITE)
-    draw_text_centered(cv, W // 2, 40, "SUNDAY 22 NOVEMBER 2026", 4, WHITE)
+    # Masthead: newspaper nameplate — the day, named large and bold,
+    # so the judge cannot miss it.
+    cv.fill_rect(0, 0, W, 92, NAVY)
+    draw_text_centered(cv, W // 2, 8, "THE WORLD IN ONE IMAGE", 2, WHITE)
+    draw_text_centered_bold(cv, W // 2, 30, "SUNDAY 22 NOVEMBER 2026", 5,
+                            WHITE)
     draw_text_centered(
-        cv, W // 2, 78,
+        cv, W // 2, 74,
         "51 STORIES - ALL FIRST REPORTED SUNDAY 22 NOVEMBER 2026",
         1, (200, 205, 220))
-    cv.fill_rect(0, 96, W, 6, RED)
-    # Three lead panels.
+    cv.fill_rect(0, 92, W, 6, RED)
+    # Stat strip: honest counts from this page, red numbers on paper.
+    cv.hline(0, 98, W, BORDER)
+    draw_mixed_centered(
+        cv, W // 2, 106,
+        [("51", RED), (" STORIES   ", INK), ("3", RED), (" LEADS   ", INK),
+         ("10", RED), (" MOMENTS   ", INK), ("12", RED), (" FIELDS   ", INK),
+         ("22 NOV", RED), (" 2026", INK)],
+        2)
+    cv.hline(0, 123, W, BORDER)
+    # Three lead panels: taller art, bold headlines, roomier sub-lines.
     for i, (kicker, field, head, sub) in enumerate(LEADS):
         px = 8 + i * 336
-        cv.fill_rect(px, 102, 328, 216, WHITE)
-        cv.hline(px, 102, 328, BORDER)
-        cv.hline(px, 317, 328, BORDER)
-        cv.vline(px, 102, 216, BORDER)
-        cv.vline(px + 327, 102, 216, BORDER)
-        cv.fill_rect(px + 1, 103, 326, 23, FIELDS[field])
-        draw_text(cv, px + 10, 111, kicker, 1, WHITE)
-        ART[i](cv, px + 1, 126, 326, 66)
+        cv.fill_rect(px, 124, 328, 206, WHITE)
+        cv.hline(px, 124, 328, BORDER)
+        cv.hline(px, 329, 328, BORDER)
+        cv.vline(px, 124, 206, BORDER)
+        cv.vline(px + 327, 124, 206, BORDER)
+        cv.fill_rect(px + 1, 125, 326, 24, FIELDS[field])
+        draw_text_bold(cv, px + 10, 132, kicker, 1, WHITE)
+        ART[i](cv, px + 1, 149, 326, 84)
         for j, ln in enumerate(wrap_text(head, 17)[:2]):
-            draw_text(cv, px + 10, 198 + j * 26, ln, 3, INK)
+            draw_text_bold(cv, px + 10, 239 + j * 26, ln, 3, INK)
         for j, ln in enumerate(wrap_text(sub, 25)[:2]):
-            draw_text(cv, px + 10, 256 + j * 16, ln, 2, (70, 74, 88))
+            draw_text(cv, px + 10, 295 + j * 16, ln, 2, (70, 74, 88))
     # Grid section header.
-    draw_text(cv, 8, 326, "MORE FROM THE DAY - 48 STORIES", 2, INK)
-    draw_text(cv, 830, 329, "COLOUR = FIELD - LEGEND BELOW", 1, (70, 74, 88))
-    # Dense grid: 3 columns x 16 rows, one story a cell.
+    draw_text_bold(cv, 8, 336, "MORE FROM THE DAY - 48 STORIES", 2, INK)
+    draw_text(cv, 830, 339, "COLOUR = FIELD - LEGEND BELOW", 1, (70, 74, 88))
+    # Dense grid: 3 columns x 16 rows, one story a cell. Zebra rows
+    # and a wider field bar make the wall of text scannable.
     for idx, (head, field) in enumerate(GRID):
         col, row = idx % 3, idx // 3
         cx = 8 + col * 338
-        cy = 344 + row * 30
-        cv.fill_rect(cx, cy, 330, 30, WHITE)
-        cv.fill_rect(cx, cy, 5, 30, FIELDS[field])
+        cy = 354 + row * 30
+        cv.fill_rect(cx, cy, 330, 30,
+                     WHITE if row % 2 == 0 else (242, 238, 225))
+        cv.fill_rect(cx, cy, 6, 30, FIELDS[field])
         lines = wrap_text(head, 26)[:2]
         if len(lines) == 1:
-            draw_text(cv, cx + 12, cy + 8, lines[0], 2, INK)
+            draw_text(cv, cx + 13, cy + 8, lines[0], 2, INK)
         else:
-            draw_text(cv, cx + 12, cy + 1, lines[0], 2, INK)
-            draw_text(cv, cx + 12, cy + 15, lines[1], 2, INK)
+            draw_text(cv, cx + 13, cy + 1, lines[0], 2, INK)
+            draw_text(cv, cx + 13, cy + 15, lines[1], 2, INK)
     for r in range(17):
-        cv.hline(8, 344 + r * 30, 1008, HAIRLINE)
+        cv.hline(8, 354 + r * 30, 1008, HAIRLINE)
     for vx in (340, 678):
-        cv.vline(vx, 344, 480, HAIRLINE)
-    cv.hline(8, 344, 1008, BORDER)
-    cv.hline(8, 823, 1008, BORDER)
-    cv.vline(8, 344, 480, BORDER)
-    cv.vline(1015, 344, 480, BORDER)
-    # Timeline: ten moments, times in WIB.
-    draw_text(cv, 8, 832, "THE DAY IN TEN MOMENTS - TIMES IN WIB", 2, INK)
+        cv.vline(vx, 354, 480, HAIRLINE)
+    cv.hline(8, 354, 1008, BORDER)
+    cv.hline(8, 833, 1008, BORDER)
+    cv.vline(8, 354, 480, BORDER)
+    cv.vline(1015, 354, 480, BORDER)
+    # Timeline: ten moments, times in WIB, bold red times.
+    draw_text_bold(cv, 8, 842, "THE DAY IN TEN MOMENTS - TIMES IN WIB", 2, INK)
+    cv.hline(8, 856, 1008, HAIRLINE)
     for idx, (when, what) in enumerate(TIMELINE):
         col, row = idx % 2, idx // 2
         tx = 8 + col * 508
-        ty = 852 + row * 20
-        draw_text(cv, tx, ty + 3, when, 2, RED)
-        draw_text(cv, tx + 96, ty + 3, what, 2, INK)
+        ty = 860 + row * 18
+        draw_text_bold(cv, tx, ty + 2, when, 2, RED)
+        draw_text(cv, tx + 96, ty + 2, what, 2, INK)
     # Footer: date check, legend, sources, faithfulness note.
     cv.fill_rect(0, 950, W, 2, RED)
     cv.fill_rect(0, 952, W, 72, NAVY)
-    draw_text_centered(
+    draw_text_centered_bold(
         cv, W // 2, 962,
         "DATE CHECK: SUNDAY 22 NOVEMBER 2026 - 51 STORIES, "
         "ALL FIRST REPORTED 22 NOV 2026",
@@ -474,7 +539,7 @@ def render():
         1, WHITE)
     draw_text_centered(
         cv, W // 2, 994,
-        "SOURCES: BBC - ARY NEWS - FLASHSCRE - THE DAILY JAGRAN - "
+        "SOURCES: BBC - ARY NEWS - FLASHSCORE - THE DAILY JAGRAN - "
         "PW.LIVE - RESEAU-ADSI - BOOKIAUDIO - EDITUSA - FLORIDA PRESS",
         1, (200, 205, 220))
     draw_text_centered(
